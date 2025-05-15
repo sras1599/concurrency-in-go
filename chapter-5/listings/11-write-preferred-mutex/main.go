@@ -1,63 +1,26 @@
 package main
 
-import "sync"
+import (
+	"fmt"
+	"time"
+)
 
-type WritePrefferingMutex struct {
-	readers        int
-	writersWaiting int
-	writerActive   bool
-	cond           *sync.Cond
-}
+func main() {
+	mu := NewMutex()
 
-func (mu *WritePrefferingMutex) Lock() {
-	mu.cond.L.Lock()
-}
+	for i := 0; i < 2; i++ {
+		go func() {
+			for {
+				mu.ReadLock()
+				time.Sleep(1 * time.Second)
 
-func (mu *WritePrefferingMutex) Unlock() {
-	mu.cond.L.Unlock()
-}
-
-func (mu *WritePrefferingMutex) ReadLock() {
-	mu.Lock()
-
-	for mu.writersWaiting > 0 || mu.writerActive {
-		mu.cond.Wait()
+				fmt.Println("Read done")
+				mu.ReadUnlock()
+			}
+		}()
 	}
 
-	mu.readers++
-	mu.Unlock()
-}
-
-func (mu *WritePrefferingMutex) WriteLock() {
-	mu.Lock()
-	mu.writersWaiting++
-
-	for mu.readers > 0 || mu.writerActive {
-		mu.cond.Wait()
-	}
-
-	mu.writersWaiting--
-	mu.writerActive = true
-
-	mu.Unlock()
-}
-
-func (mu *WritePrefferingMutex) ReadUnlock() {
-	mu.Lock()
-	mu.readers--
-
-	if mu.readers == 0 {
-		mu.cond.Broadcast()
-	}
-
-	mu.Unlock()
-}
-
-func (mu *WritePrefferingMutex) WriteUnlock() {
-	mu.Lock()
-
-	mu.writerActive = false
-	mu.cond.Broadcast()
-
-	mu.Unlock()
+	time.Sleep(1 * time.Second)
+	mu.WriteLock()
+	fmt.Println("Write finished")
 }
